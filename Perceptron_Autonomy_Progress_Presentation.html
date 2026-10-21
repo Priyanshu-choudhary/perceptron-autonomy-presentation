@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Perceptron Rover Autonomy: CARLA Digital Twin & 3D Perception Pipeline</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0a0e17;
+      --card-bg: rgba(18, 26, 43, 0.85);
+      --card-border: rgba(56, 189, 248, 0.2);
+      --accent-cyan: #38bdf8;
+      --accent-blue: #3b82f6;
+      --accent-purple: #a855f7;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-bright: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: radial-gradient(circle at 15% 20%, #0d1b33 0%, var(--bg-dark) 85%);
+      color: var(--text-main);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      user-select: none;
+    }
+
+    /* Presentation Slide Container */
+    #deck {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slide {
+      position: absolute;
+      width: 92vw;
+      height: 88vh;
+      max-width: 1650px;
+      max-height: 940px;
+      padding: 40px 50px;
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 40px rgba(56, 189, 248, 0.1);
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      visibility: hidden;
+      transform: scale(0.96) translateY(20px);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      transform: scale(1) translateY(0);
+      z-index: 10;
+    }
+
+    /* Scrollbar styling for slides */
+    .slide::-webkit-scrollbar {
+      width: 6px;
+    }
+    .slide::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+    }
+    .slide::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.3);
+      border-radius: 10px;
+    }
+
+    /* Typography */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+      width: fit-content;
+    }
+    .badge-cyan { background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan); border: 1px solid rgba(56, 189, 248, 0.3); }
+    .badge-emerald { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-purple { background: rgba(168, 85, 247, 0.15); color: var(--accent-purple); border: 1px solid rgba(168, 85, 247, 0.3); }
+    .badge-amber { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #ffffff 30%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1.15;
+      margin-bottom: 8px;
+    }
+
+    h2 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: var(--text-bright);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .subtitle {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      font-weight: 400;
+    }
+
+    /* Layout Grids */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      flex: 1;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      flex: 1;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    /* Cards */
+    .card {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+    .card:hover {
+      border-color: rgba(56, 189, 248, 0.3);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+    }
+    .card h3 {
+      font-size: 1.15rem;
+      color: var(--text-bright);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card p {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Media Frames */
+    .media-box {
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #000;
+      position: relative;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.5);
+    }
+    .media-box img, .media-box video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .media-box.contain img, .media-box.contain video {
+      object-fit: contain;
+    }
+    .media-caption {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 8px 12px;
+      background: linear-gradient(transparent, rgba(10, 14, 23, 0.95));
+      font-size: 0.8rem;
+      color: var(--accent-cyan);
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* Metrics & Stats Tables */
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin-top: 10px;
+    }
+    table.data-table th, table.data-table td {
+      padding: 10px 14px;
+      text-align: left;
+    }
+    table.data-table th {
+      background: rgba(30, 41, 59, 0.8);
+      color: var(--accent-cyan);
+      font-weight: 600;
+      border-bottom: 1px solid rgba(56, 189, 248, 0.3);
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+    table.data-table td {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      color: var(--text-main);
+    }
+    table.data-table tr:hover td {
+      background: rgba(56, 189, 248, 0.05);
+    }
+
+    .metric-value {
+      font-family: 'Fira Code', monospace;
+      font-weight: 600;
+      color: var(--accent-emerald);
+    }
+    .metric-error {
+      font-family: 'Fira Code', monospace;
+      color: var(--accent-rose);
+      text-decoration: line-through;
+    }
+
+    .code-pill {
+      font-family: 'Fira Code', monospace;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--accent-cyan);
+      font-size: 0.82rem;
+    }
+
+    /* Bottom Control Bar */
+    #controls {
+      position: fixed;
+      bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 8px 24px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 9999px;
+      z-index: 100;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    button.nav-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-bright);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    button.nav-btn:hover {
+      background: var(--accent-cyan);
+      color: #000;
+      border-color: var(--accent-cyan);
+    }
+
+    #slide-indicator {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      min-width: 60px;
+      text-align: center;
+    }
+
+    .key-hint {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    /* Timeline Stepper on Title & Summary */
+    .timeline {
+      display: flex;
+      justify-content: space-between;
+      position: relative;
+      margin: 20px 0 30px;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      top: 14px;
+      left: 10px;
+      right: 10px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.15);
+      z-index: 1;
+    }
+    .t-step {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .t-circle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--bg-dark);
+      border: 2px solid var(--accent-cyan);
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .t-step.done .t-circle {
+      background: var(--accent-emerald);
+      border-color: var(--accent-emerald);
+      color: #000;
+    }
+    .t-step.active .t-circle {
+      background: var(--accent-cyan);
+      box-shadow: 0 0 15px var(--accent-cyan);
+      color: #000;
+    }
+    .t-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      max-width: 90px;
+    }
+
+    /* List styling */
+    ul.check-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    ul.check-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+    ul.check-list li .bullet {
+      color: var(--accent-emerald);
+      font-weight: bold;
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+  </style>
+</head>
+<body>
+
+<div id="deck">
+
+  <!-- SLIDE 1: TITLE SLIDE -->
+  <div class="slide active" id="slide-1">
+    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; max-width: 1100px;">
+      <span class="badge badge-cyan">Research & Engineering Milestone</span>
+      <h1 style="font-size: 3.2rem; margin-bottom: 16px;">Autonomous Navigation Pipeline in CARLA Simulator</h1>
+      <p style="font-size: 1.35rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 28px;">
+        High-Fidelity Sensor Simulation, 6-DOF EKF Validation, 3D LiDAR Perception, Multi-Object Tracking & Spatio-Temporal Rolling Costmap for the <strong>Perceptron Rover</strong>.
+      </p>
+
+      <div class="grid-3" style="margin-bottom: 30px;">
+        <div class="card" style="padding: 18px;">
+          <div style="color: var(--accent-cyan); font-weight: 700; font-size: 0.85rem; margin-bottom: 4px;">PLATFORM</div>
+          <div style="font-size: 1.1rem; font-weight: 600; color: #fff;">CARLA 0.9.15 + ROS 2 Humble</div>
+          <p style="font-size: 0.85rem; margin-top: 4px;">Synchronous 20 Hz simulation with `/clock`</p>
+        </div>
+        <div class="card" style="padding: 18px;">
+          <div style="color: var(--accent-emerald); font-weight: 700; font-size: 0.85rem; margin-bottom: 4px;">MILESTONE ACHIEVED</div>
+          <div style="font-size: 1.1rem; font-weight: 600; color: #fff;">Stages 0 through 8 Verified</div>
+          <p style="font-size: 0.85rem; margin-top: 4px;">149 Unit & Integration Tests Passing</p>
+        </div>
+        <div class="card" style="padding: 18px;">
+          <div style="color: var(--accent-purple); font-weight: 700; font-size: 0.85rem; margin-bottom: 4px;">TARGET HARDWARE</div>
+          <div style="font-size: 1.1rem; font-weight: 600; color: #fff;">Perceptron Jetson Nano Rover</div>
+          <p style="font-size: 0.85rem; margin-top: 4px;">Contract-based decoupled architecture</p>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 20px; align-items: center; color: var(--text-muted); font-size: 0.9rem;">
+        <span><strong>Presenter:</strong> Autonomous Systems Team</span>
+        <span>•</span>
+        <span><strong>Review:</strong> Faculty Advisory Presentation</span>
+        <span>•</span>
+        <span class="code-pill">feature/carla-sim-perception</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 2: EXECUTIVE SUMMARY & ROADMAP PROGRESS -->
+  <div class="slide" id="slide-2">
+    <span class="badge badge-emerald">Progress Roadmap (Stages 0–11)</span>
+    <h2>End-to-End Autonomy System Architecture</h2>
+    <p class="subtitle">Complete roadmap from digital twin creation to closed-loop Nav2 autonomous driving.</p>
+
+    <div class="timeline">
+      <div class="t-step done"><div class="t-circle">0</div><div class="t-label">Baseline & QoS</div></div>
+      <div class="t-step done"><div class="t-circle">1</div><div class="t-label">Rover Rig Setup</div></div>
+      <div class="t-step done"><div class="t-circle">2</div><div class="t-label">Sim Sensors</div></div>
+      <div class="t-step done"><div class="t-circle">3</div><div class="t-label">EKF Localization</div></div>
+      <div class="t-step done"><div class="t-circle">4</div><div class="t-label">3D LiDAR Filters</div></div>
+      <div class="t-step done"><div class="t-circle">5</div><div class="t-label">2D-3D Fusion</div></div>
+      <div class="t-step done"><div class="t-circle">6</div><div class="t-label">MOT Tracking</div></div>
+      <div class="t-step done"><div class="t-circle">7</div><div class="t-label">Trajectories</div></div>
+      <div class="t-step active"><div class="t-circle">8</div><div class="t-label">3D Costmap</div></div>
+      <div class="t-step"><div class="t-circle">9</div><div class="t-label">Scenarios</div></div>
+      <div class="t-step"><div class="t-circle">10</div><div class="t-label">Control Adapt</div></div>
+      <div class="t-step"><div class="t-circle">11</div><div class="t-label">Nav2 Loop</div></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3><span style="color: var(--accent-emerald);">✔</span> What Has Been Completed & Verified (Stages 0–8)</h3>
+        <ul class="check-list" style="margin-top: 10px;">
+          <li><span class="bullet">✔</span> <strong>Stage 0–2 (Sensor Emulation):</strong> Realistic IMU, Wheel Odometry, and GNSS matching physical rover hardware and ROS 2 REP-103/REP-105 standards.</li>
+          <li><span class="bullet">✔</span> <strong>Stage 3 (State Estimation):</strong> Diagnosed and fixed 4 critical bugs in the localization stack; reduced global drift to <strong>1.31 m RMSE over 631 m</strong>.</li>
+          <li><span class="bullet">✔</span> <strong>Stage 4 (Point Cloud Processing):</strong> Self-box filtering (40% down to 0%), tight RANSAC ground extraction (99.7% recall), and obstacle clustering.</li>
+          <li><span class="bullet">✔</span> <strong>Stage 5–7 (Object Tracking & Prediction):</strong> 2D camera + 3D LiDAR fusion, persistent Kalman Filter multi-object tracking, and 0.5s–2.0s constant-velocity trajectory forecasting.</li>
+          <li><span class="bullet">✔</span> <strong>Stage 8 (Dynamic 3D Costmap):</strong> 5 cm rolling voxel grid, ego-vehicle visual model, and spatio-temporal risk inflation layers.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3><span style="color: var(--accent-cyan);">🚀</span> What Remains to Close the Loop (Stages 9–11)</h3>
+        <ul class="check-list" style="margin-top: 10px;">
+          <li><span class="bullet">➔</span> <strong>Stage 9 (Scenario Verification):</strong> Automated evaluation across challenging edge-cases (blind corners, night, pedestrian jaywalking, sensor occlusion).</li>
+          <li><span class="bullet">➔</span> <strong>Stage 10 (Control Adapter):</strong> Converting Nav2 `/cmd_vel` into smooth Ackermann / Throttle-Brake-Steer commands with watchdog emergency stops.</li>
+          <li><span class="bullet">➔</span> <strong>Stage 11 (Nav2 Stack Integration):</strong> Smac2D / DWB path planning through the 3D Costmap to complete full autonomous point-to-point missions.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 3: STAGES 0-2 DIGITAL TWIN SENSORS -->
+  <div class="slide" id="slide-3">
+    <span class="badge badge-cyan">Stages 0, 1 & 2</span>
+    <h2>Hardware Digital Twin & Sensor Emulation</h2>
+    <p class="subtitle">Creating a 1:1 kinematic and perceptual twin of the Perceptron physical rover inside CARLA.</p>
+
+    <div class="grid-2">
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="card">
+          <h3>The Virtual Rover Sensor Rig Deviation</h3>
+          <p>
+            In CARLA, the smallest 4-wheel car is the <strong>Microlino</strong> (wheelbase 1.525 m). Mounting sensors at the car's origin would put them inside the chassis.
+          </p>
+          <p style="margin-top: 8px;">
+            <strong>Solution:</strong> Sensors ride on an extruded rig <strong>2.044 m ahead of the rear axle</strong> (<code class="code-pill">base_footprint</code>), matching the physical rover's true heights:
+          </p>
+          <table class="data-table">
+            <tr><th>Sensor</th><th>Mount Height</th><th>Pitch Angle</th><th>Specification</th></tr>
+            <tr><td><strong>Camera</strong></td><td>0.42 m</td><td>-4.02° down</td><td>1280x720 RGB, ArUco-calibrated</td></tr>
+            <tr><td><strong>3D LiDAR</strong></td><td>0.352 m</td><td>+14.9° down</td><td>16-beam, 300k pts/sec</td></tr>
+            <tr><td><strong>IMU</strong></td><td>0.053 m</td><td>0.00° (ENU)</td><td>Pixhack MAVLink emulation</td></tr>
+            <tr><td><strong>GNSS</strong></td><td>0.400 m</td><td>0.00°</td><td>Re-anchored off UTM 30/31 boundary</td></tr>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3>Automated Sensor Sanity Gate (`sensor_check`)</h3>
+          <p>Every commit is validated with a 30-second automated diagnostic suite:</p>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px;">
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">WHEEL ODOMETRY</div>
+              <div class="metric-value">Speed Scale 1.020 (0.02 m/s std)</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">IMU HEADING</div>
+              <div class="metric-value">+1.75° bias ± 0.52° walk</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">GNSS NOISE</div>
+              <div class="metric-value">Median 1.28 m (p95 2.74 m)</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">TF SINGLE-OWNER</div>
+              <div class="metric-value">PASS (Zero duplicate publishers)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="media-box" style="flex: 1;">
+          <img src="./presentation_assets/rover_overlay.png" alt="Sensor Rig Projection">
+          <div class="media-caption">LiDAR-on-Camera Extrinsic Calibration Verification (|err| < 0.4 px)</div>
+        </div>
+        <div class="media-box" style="height: 180px;">
+          <img src="./presentation_assets/video_frame_1_t5s.jpg" alt="CARLA Town10 Setup">
+          <div class="media-caption">CARLA Town10HD Environment with Traffic & Pedestrians</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 4: STAGE 3 EKF LOCALIZATION BREAKTHROUGH -->
+  <div class="slide" id="slide-4">
+    <span class="badge badge-emerald">Stage 3 Milestone</span>
+    <h2>EKF Localization Stack Validation & Bug Fixes</h2>
+    <p class="subtitle">Benchmarking dual Extended Kalman Filters against CARLA Ground Truth over 631 meters of driving.</p>
+
+    <div class="grid-2">
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="card">
+          <h3>The Four Critical Bugs Diagnosed in Unpatched Stack</h3>
+          <ul class="check-list" style="font-size: 0.88rem;">
+            <li>
+              <span class="bullet" style="color: var(--accent-rose);">✖</span>
+              <div>
+                <strong>Bug 1: Unmeasured Lateral Velocity (vy):</strong><br>
+                STM32 published vy variance as 1e6. EKF allowed unconstrained lateral wander up to 9 m/s.<br>
+                <em>Fix: Enforced vy = 0 with tight covariance (0.001) for non-holonomic constraint.</em>
+              </div>
+            </li>
+            <li>
+              <span class="bullet" style="color: var(--accent-rose);">✖</span>
+              <div>
+                <strong>Bug 2: Local EKF Fused Fake Zero Pose:</strong><br>
+                <code class="code-pill">odom0_config</code> fused (x, y) = (0, 0), dragging the robot back to origin.<br>
+                <em>Fix: Set odom0 pose fusion to false; fuse twist only.</em>
+              </div>
+            </li>
+            <li>
+              <span class="bullet" style="color: var(--accent-rose);">✖</span>
+              <div>
+                <strong>Bug 3: ROS 2 Navsat IMU Remapping Silent Failure:</strong><br>
+                Topic was remapped to <code class="code-pill">imu/data</code> (ROS 1 style). In ROS 2 Humble it is <code class="code-pill">imu</code>, causing constant datum re-initialization.<br>
+                <em>Fix: Remapped ('imu', '/imu/data').</em>
+              </div>
+            </li>
+            <li>
+              <span class="bullet" style="color: var(--accent-rose);">✖</span>
+              <div>
+                <strong>Bug 4: Navsat Feedback Loop:</strong><br>
+                Navsat was fed the local EKF, creating a diverging feedback loop of 944 m error.<br>
+                <em>Fix: Fed navsat with `/odometry/global`.</em>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="card">
+          <h3>Quantitative Results (631.4 m Drive in Town10)</h3>
+          <table class="data-table">
+            <tr><th>Metric</th><th>Unpatched Baseline</th><th>Patched Stack (`fixes:=true`)</th></tr>
+            <tr><td><strong>Global Pos RMSE</strong></td><td class="metric-error">266.0 m (max 448m)</td><td class="metric-value">1.31 m (max 2.19m)</td></tr>
+            <tr><td><strong>Final Position Error</strong></td><td class="metric-error">~250.0 m</td><td class="metric-value">1.28 m</td></tr>
+            <tr><td><strong>Cumulative Drift</strong></td><td class="metric-error">16.80 %</td><td class="metric-value">0.20 %</td></tr>
+            <tr><td><strong>Heading RMSE</strong></td><td>2.70°</td><td class="metric-value">2.38°</td></tr>
+            <tr><td><strong>Dead-Reckoning (Local)</strong></td><td>130 m drift</td><td class="metric-value">0.82% drift over 631 m</td></tr>
+          </table>
+        </div>
+
+        <div class="media-box" style="flex: 1;">
+          <img src="./presentation_assets/traj_local_F.png" alt="Trajectory Evaluation">
+          <div class="media-caption">Ground Truth vs EKF Trajectory Overlay: 0.20% Drift Bound</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 5: STAGE 4 LIDAR PREPROCESSING -->
+  <div class="slide" id="slide-5">
+    <span class="badge badge-cyan">Stage 4 Milestone</span>
+    <h2>3D LiDAR Preprocessing & Ground Removal</h2>
+    <p class="subtitle">Turning noisy raw point clouds into clean, segmented 3D obstacles and 2D virtual scans.</p>
+
+    <div class="grid-2">
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="card">
+          <h3>Pipeline Architecture & Algorithmic Strategy</h3>
+          <p style="font-size: 0.88rem; line-height: 1.6;">
+            The Perceptron 16-beam LiDAR is pitched <strong>15° downward</strong>, meaning ground returns dominate the raw point cloud. We developed a low-latency 5-stage filter:
+          </p>
+          <ul class="check-list" style="margin-top: 10px; font-size: 0.88rem;">
+            <li><span class="bullet">1</span> <strong>Range & Ego-Self Box Filter:</strong> Strips out host car bumper reflections (dropped self points from <strong>40% to 0.00%</strong>).</li>
+            <li><span class="bullet">2</span> <strong>Dual-Stage Ground Extraction:</strong> Tight RANSAC plane fitting (5 cm threshold) combined with a local-height elevation grid to preserve curbs while discarding flat road.</li>
+            <li><span class="bullet">3</span> <strong>2D Euclidean Clustering:</strong> Clusters non-ground points into objects. 2D projection avoids vertical beam slicing on pedestrians.</li>
+            <li><span class="bullet">4</span> <strong>Virtual 2D LaserScan (<code class="code-pill">/perception/scan</code>):</strong> Extracts the nearest obstacle band (0.1–1.5 m) for backward compatibility with 2D Nav2 local planners.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Benchmark Against Semantic Ground Truth</h3>
+          <table class="data-table">
+            <tr><th>Metric</th><th>Target</th><th>Measured Value</th></tr>
+            <tr><td>Ground Precision / Recall</td><td>> 95%</td><td class="metric-value">96.8% / 99.7%</td></tr>
+            <tr><td>Pedestrian Detection (0–10 m)</td><td>> 95%</td><td class="metric-value">100.0%</td></tr>
+            <tr><td>Pedestrian Detection (10–20 m)</td><td>> 90%</td><td class="metric-value">100.0%</td></tr>
+            <tr><td>Processing Latency per Cloud</td><td>< 50 ms</td><td class="metric-value">11 – 15 ms (20 Hz ready)</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="media-box" style="flex: 1;">
+          <img src="./presentation_assets/video_frame_3_t45s.jpg" alt="LiDAR Clusters in RViz">
+          <div class="media-caption">RViz: Segmented Ground (Green) + Obstacle Clusters (Boxes) + 2D Scan</div>
+        </div>
+        <div class="media-box" style="height: 180px;">
+          <img src="./presentation_assets/objects_crossing.png" alt="Crossing Pedestrian Clusters">
+          <div class="media-caption">Pedestrian Clusters Evaluated with CARLA Semantic LiDAR Twin</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 6: STAGES 5-7 FUSION, TRACKING & PREDICTION -->
+  <div class="slide" id="slide-6">
+    <span class="badge badge-purple">Stages 5, 6 & 7</span>
+    <h2>Sensor Fusion, Multi-Object Tracking & Prediction</h2>
+    <p class="subtitle">From static detection snapshots to persistent identities, velocities, and future trajectory rollouts.</p>
+
+    <div class="grid-3">
+      <div class="card">
+        <h3>Stage 5: 2D-3D Fusion</h3>
+        <p style="font-size: 0.88rem; margin-bottom: 12px;">
+          Projects 3D LiDAR clusters into camera image bounding boxes using verified intrinsics:
+        </p>
+        <div class="media-box" style="height: 140px; margin-bottom: 12px;">
+          <img src="./presentation_assets/boxes_debug.png" alt="2D Bounding Boxes">
+        </div>
+        <ul class="check-list" style="font-size: 0.82rem;">
+          <li><span class="bullet">✔</span> Calculates true 3D centroid & depth.</li>
+          <li><span class="bullet">✔</span> Merges fragmented clusters on large vehicles.</li>
+          <li><span class="bullet">✔</span> Publishes `/perception/detected_objects`.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Stage 6: Multi-Object Tracking</h3>
+        <p style="font-size: 0.88rem; margin-bottom: 12px;">
+          Maintains persistent track IDs and estimates 3D velocities in the fixed <code class="code-pill">odom</code> frame:
+        </p>
+        <div class="media-box" style="height: 140px; margin-bottom: 12px;">
+          <img src="./presentation_assets/objects_city.png" alt="Tracked Objects in City">
+        </div>
+        <ul class="check-list" style="font-size: 0.82rem;">
+          <li><span class="bullet">✔</span> <strong>Ego-motion compensation:</strong> Stationaries stay v=0.</li>
+          <li><span class="bullet">✔</span> <strong>Anti-flicker:</strong> Tentative/confirmed/death states.</li>
+          <li><span class="bullet">✔</span> Pedestrian velocity MAE: <strong>0.15 m/s</strong>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Stage 7: Trajectory Prediction</h3>
+        <p style="font-size: 0.88rem; margin-bottom: 12px;">
+          Rolls forward motion kinematics across 3 discrete horizons for downstream costmaps:
+        </p>
+        <div style="background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+          <div style="font-size: 0.8rem; color: var(--accent-cyan); font-family: 'Fira Code', monospace;">Horizons Evaluated:</div>
+          <div style="font-size: 0.85rem; margin-top: 4px;">🟢 <strong>0.5 s:</strong> Immediate collision path</div>
+          <div style="font-size: 0.85rem; margin-top: 4px;">🟡 <strong>1.0 s:</strong> Crossing trajectory</div>
+          <div style="font-size: 0.85rem; margin-top: 4px;">🔴 <strong>2.0 s:</strong> Far planning horizon</div>
+        </div>
+        <ul class="check-list" style="font-size: 0.82rem;">
+          <li><span class="bullet">✔</span> Non-holonomic vehicle motion gating.</li>
+          <li><span class="bullet">✔</span> Computation time: <strong>< 0.1 ms</strong> (Zero AI lag).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 7: STAGE 8 THE 3D ROLLING COSTMAP -->
+  <div class="slide" id="slide-7">
+    <span class="badge badge-emerald">Stage 8 Masterpiece</span>
+    <h2>3D Rolling Voxel Costmap & Spatio-Temporal Risk</h2>
+    <p class="subtitle">The central perception-to-planning interface feeding lethal obstacles, 3D voxels, and dynamic risk to Nav2.</p>
+
+    <div class="grid-2">
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="card">
+          <h3>The Multi-Layer Costmap Engine</h3>
+          <table class="data-table">
+            <tr><th>Layer</th><th>Resolution / Scope</th><th>Role in Navigation</th></tr>
+            <tr>
+              <td><strong>3D Voxel Layer</strong></td>
+              <td>5 cm voxels (height-colored)</td>
+              <td>Distinguishes low curbs from lethal walls and overhead clearance. Zero trail behind moving cars.</td>
+            </tr>
+            <tr>
+              <td><strong>Dynamic Risk Layer</strong></td>
+              <td>Time-decayed prediction band</td>
+              <td>Paints predicted crossing paths with high cost. Nav2 yields <em>before</em> pedestrians step in front.</td>
+            </tr>
+            <tr>
+              <td><strong>Inflation Layer</strong></td>
+              <td>Robot radius + safety decay</td>
+              <td>Buffers robot footprint to guarantee collision-free kinematic path generation.</td>
+            </tr>
+            <tr>
+              <td><strong>Road & Lanes</strong></td>
+              <td>40 m moving map</td>
+              <td>Ground-projected road segmentation + lane line markings for lane-keeping.</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3>Ground-Truth Benchmark (`costmap_eval_node`)</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px;">
+            <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">OBSTACLE RECALL</div>
+              <div class="metric-value">≥ 99.0 % (Cars & People)</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">FALSE POSITIVES</div>
+              <div class="metric-value">1.0 % – 2.0 % (Low noise)</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">MAP FLICKER RATE</div>
+              <div class="metric-value">< 0.1 % (Rock solid)</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">UPDATE LATENCY</div>
+              <div class="metric-value">35 – 50 ms (20 Hz loop)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="media-box" style="flex: 1;">
+          <img src="./presentation_assets/costmap_crossing.png" alt="3D Costmap in RViz">
+          <div class="media-caption">Live 3D Costmap: Voxels + Dynamic Pedestrian Crossing Risk Bands</div>
+        </div>
+        <div class="media-box" style="height: 190px;">
+          <img src="./presentation_assets/road_lanes.png" alt="Road and Lane Segmentation">
+          <div class="media-caption">Road Segmentation Map (Grey) & Lane Markings (Cyan/Orange)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 8: LIVE SIMULATION EVIDENCE (VIDEO) -->
+  <div class="slide" id="slide-8">
+    <span class="badge badge-emerald">Live Experimental Demonstration</span>
+    <h2>Screen Recording: Live Autonomous Pipeline Execution</h2>
+    <p class="subtitle">Complete multi-terminal execution showing CARLA UE4, ROS 2 nodes, and live RViz visualization.</p>
+
+    <div class="grid-2" style="align-items: center;">
+      <div class="media-box contain" style="height: 520px; background: #000;">
+        <video controls poster="./presentation_assets/video_frame_4_t75s.jpg">
+          <source src="./Recording 2026-10-21 181700.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+        <div class="media-caption">Live Execution Recording (E:\New folder (3)\Recording 2026-10-21 181700.mp4)</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="card">
+          <h3>Key Observable Behaviors in the Recording</h3>
+          <ul class="check-list" style="font-size: 0.9rem;">
+            <li><span class="bullet">1</span> <strong>3D Voxel Ground Separation:</strong> Road surface is cleanly designated free, while pedestrian legs and vehicle chassis form dense 5 cm height voxels.</li>
+            <li><span class="bullet">2</span> <strong>Predictive Risk Ribbons:</strong> As pedestrians step into crosswalks, forward-projecting dynamic risk bands immediately appear across the road.</li>
+            <li><span class="bullet">3</span> <strong>Clean Disappearing Object Clearing:</strong> Moving vehicles leave zero ghost artifacts behind them; cleared within 1.5 seconds.</li>
+            <li><span class="bullet">4</span> <strong>Ego Vehicle Model:</strong> 3D vehicle marker accurately mirrors true vehicle dimensions and sensor mast orientation.</li>
+          </ul>
+        </div>
+
+        <div class="grid-2">
+          <div class="media-box" style="height: 170px;">
+            <img src="./presentation_assets/video_frame_2_t20s.jpg" alt="Frame 20s">
+            <div class="media-caption">Ego-vehicle in traffic (t=20s)</div>
+          </div>
+          <div class="media-box" style="height: 170px;">
+            <img src="./presentation_assets/video_frame_5_t110s.jpg" alt="Frame 110s">
+            <div class="media-caption">Costmap lethal inflation (t=110s)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 9: MODULARITY, SIM-TO-REAL & RESEARCH EXTENSIONS -->
+  <div class="slide" id="slide-9">
+    <span class="badge badge-purple">Research & Thesis Value</span>
+    <h2>Modularity, Sim-to-Real Portability & Future Research</h2>
+    <p class="subtitle">Why this architecture sets up Perceptron for future research papers and physical robot transfer.</p>
+
+    <div class="grid-3">
+      <div class="card">
+        <h3>1. Direct Sim-to-Real Portability</h3>
+        <p style="font-size: 0.88rem; line-height: 1.6;">
+          <strong>No simulator code in the autonomy graph:</strong>
+          Every perception node subscribes strictly to standard ROS topics (<code class="code-pill">PointCloud2</code>, <code class="code-pill">Image</code>, <code class="code-pill">TF</code>).
+        </p>
+        <p style="font-size: 0.88rem; margin-top: 10px;">
+          When switching from CARLA to the physical rover on Jetson Nano, only the bridge changes from <code class="code-pill">carla_bridge</code> to <code class="code-pill">jetson_robot_bridge.py</code>. The filters, tracker, and costmap run completely unmodified.
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>2. Future Multi-Camera & BEV Fusion</h3>
+        <p style="font-size: 0.88rem; line-height: 1.6;">
+          Because Stage 6 & 8 rely on contract-based 3D boxes and voxel grids:
+        </p>
+        <ul class="check-list" style="font-size: 0.82rem; margin-top: 10px;">
+          <li><span class="bullet">➔</span> <strong>Surround View (BEV):</strong> We can replace single camera fusion with a 4-camera Bird’s-Eye-View network (e.g. BEVFormer).</li>
+          <li><span class="bullet">➔</span> <strong>Dual 3D LiDARs:</strong> Easily merge front & rear LiDAR streams into Stage 4.</li>
+          <li><span class="bullet">➔</span> <strong>Zero Downstream Changes:</strong> Tracking, Trajectory Prediction, and Nav2 remain untouched.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>3. Repeatable Academic Benchmarking</h3>
+        <p style="font-size: 0.88rem; line-height: 1.6;">
+          Every subsystem carries its own ground-truth evaluation node:
+        </p>
+        <ul class="check-list" style="font-size: 0.82rem; margin-top: 10px;">
+          <li><span class="bullet">✔</span> <code class="code-pill">localization_eval_node</code> (6-DOF RMSE)</li>
+          <li><span class="bullet">✔</span> <code class="code-pill">cloud_eval_node</code> (P/R against semantic lidar)</li>
+          <li><span class="bullet">✔</span> <code class="code-pill">tracking_eval_node</code> (CLEAR-MOT, ID switches)</li>
+          <li><span class="bullet">✔</span> <code class="code-pill">costmap_eval_node</code> (Voxel recall & flicker)</li>
+        </ul>
+        <p style="font-size: 0.85rem; color: var(--accent-cyan); margin-top: 10px;">
+          Provides hard quantitative data for publications and thesis defense!
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 10: NEXT STEPS & TIMELINE -->
+  <div class="slide" id="slide-10">
+    <span class="badge badge-amber">Next Action Steps</span>
+    <h2>Immediate Next Steps: Closing the Autonomy Loop</h2>
+    <p class="subtitle">Actionable plan to connect path planners and execute closed-loop navigation missions.</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>Phase 1: Control Adapter & Scenario Suite (Stages 9 & 10)</h3>
+        <ul class="check-list" style="font-size: 0.92rem; margin-top: 10px;">
+          <li>
+            <span class="bullet">1</span>
+            <div>
+              <strong>Stage 10: CARLA Control Adapter (Immediate Priority):</strong><br>
+              Implement ROS 2 node translating <code class="code-pill">/cmd_vel</code> (linear velocity, angular velocity) into CARLA VehicleControl (throttle, steer, brake) or VehicleAckermannControl, with a 200 ms watchdog timeout and emergency braking.
+            </div>
+          </li>
+          <li>
+            <span class="bullet">2</span>
+            <div>
+              <strong>Stage 9: Automated Regression Scenario Suite:</strong><br>
+              Deterministic test scenarios: (1) Sudden crossing pedestrian at 15 m, (2) Stopped vehicle in lane, (3) High-speed intersection crossing. Automated pass/fail scoring.
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Phase 2: Closed-Loop Nav2 Integration (Stage 11)</h3>
+        <ul class="check-list" style="font-size: 0.92rem; margin-top: 10px;">
+          <li>
+            <span class="bullet">3</span>
+            <div>
+              <strong>Connecting Nav2 Planner & Controller:</strong><br>
+              Plug the Stage 8 Costmap directly into Nav2's global planner (SmacPlanner Hybrid-A* / 2D) and local controller (DWB / RPP).
+            </div>
+          </li>
+          <li>
+            <span class="bullet">4</span>
+            <div>
+              <strong>Full Mission Autonomous Run:</strong><br>
+              Dispatch a GPS waypoint mission in CARLA Town10. Demonstrate full obstacle avoidance, pedestrian yielding, lane adherence, and successful arrival at the goal.
+            </div>
+          </li>
+        </ul>
+
+        <div style="margin-top: 20px; padding: 14px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-size: 0.8rem; color: var(--accent-cyan); font-weight: 700;">CURRENT REPOSITORY STATE</div>
+            <div style="font-size: 0.95rem; font-weight: 600; color: #fff;">Commit a9cd3d4 on feature/carla-sim-perception</div>
+          </div>
+          <span class="badge badge-emerald" style="margin: 0;">149 TESTS PASSING</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- BOTTOM CONTROL BAR -->
+<div id="controls">
+  <button class="nav-btn" onclick="prevSlide()">◀ Prev <span class="key-hint">←</span></button>
+  <div id="slide-indicator">1 / 10</div>
+  <button class="nav-btn" onclick="nextSlide()">Next ▶ <span class="key-hint">→</span></button>
+  <button class="nav-btn" onclick="toggleFullscreen()" style="margin-left: 10px;">⛶ <span class="key-hint">F</span></button>
+</div>
+
+<script>
+  let currentSlide = 0;
+  const slides = document.querySelectorAll('.slide');
+  const totalSlides = slides.length;
+  const indicator = document.getElementById('slide-indicator');
+
+  function updateSlide(index) {
+    if (index < 0) index = 0;
+    if (index >= totalSlides) index = totalSlides - 1;
+    currentSlide = index;
+
+    slides.forEach((slide, i) => {
+      slide.classList.toggle('active', i === currentSlide);
+    });
+
+    indicator.textContent = `${currentSlide + 1} / ${totalSlides}`;
+  }
+
+  function nextSlide() {
+    updateSlide(currentSlide + 1);
+  }
+
+  function prevSlide() {
+    updateSlide(currentSlide - 1);
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  }
+
+  // Keyboard Navigation
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+      nextSlide();
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      prevSlide();
+    } else if (e.key === 'f' || e.key === 'F') {
+      toggleFullscreen();
+    } else if (e.key >= '1' && e.key <= '9') {
+      updateSlide(parseInt(e.key) - 1);
+    } else if (e.key === '0') {
+      updateSlide(9);
+    }
+  });
+
+  // Touch Swipe for mobile/tablets
+  let touchStartX = 0;
+  window.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].screenX;
+  });
+  window.addEventListener('touchend', (e) => {
+    let diff = touchStartX - e.changedTouches[0].screenX;
+    if (diff > 50) nextSlide();
+    if (diff < -50) prevSlide();
+  });
+</script>
+</body>
+</html>
